@@ -90,7 +90,7 @@ describe("issue #82: copy/export use the rendered diagram, not other elements in
 
         expect(plugin.app.vault.create).toHaveBeenCalledTimes(1);
         const [path, data] = vi.mocked(plugin.app.vault.create).mock.calls[0] as unknown as [string, string];
-        expect(path).toBe("/exports/Issue82.svg");
+        expect(path).toBe("exports/Issue82.svg");
         expect(data).toContain("plantuml-diagram");
         expect(data).not.toContain("lucide-maximize");
     });
@@ -110,7 +110,7 @@ describe("issue #82: copy/export use the rendered diagram, not other elements in
         await click(menu, "Export diagram");
 
         expect(plugin.app.vault.createBinary).toHaveBeenCalledTimes(1);
-        expect(vi.mocked(plugin.app.vault.createBinary).mock.calls[0][0]).toBe("/exports/Issue82.png");
+        expect(vi.mocked(plugin.app.vault.createBinary).mock.calls[0][0]).toBe("exports/Issue82.png");
         expect(plugin.app.vault.create).not.toHaveBeenCalled();
     });
 
@@ -123,7 +123,7 @@ describe("issue #82: copy/export use the rendered diagram, not other elements in
 
         await click(menu, "Export diagram");
         expect(plugin.app.vault.create).toHaveBeenCalledTimes(1);
-        expect(vi.mocked(plugin.app.vault.create).mock.calls[0]).toEqual(["/exports/Issue82.txt", "Alice -> Bob"]);
+        expect(vi.mocked(plugin.app.vault.create).mock.calls[0]).toEqual(["exports/Issue82.txt", "Alice -> Bob"]);
     });
 });
 

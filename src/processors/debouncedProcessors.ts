@@ -1,4 +1,4 @@
-import { debounce, Debouncer, HoverParent, Keymap, Menu, Notice, TFile } from "obsidian";
+import { debounce, Debouncer, HoverParent, Keymap, Menu, normalizePath, Notice, TFile } from "obsidian";
 import PlantumlPlugin from "../main";
 import { Processor, ProcessorContext } from "./processor";
 import { getInternalLinkText, insertErrorMessage, serializeSvg } from "../functions";
@@ -258,27 +258,23 @@ export class DebouncedProcessors implements Processor {
     }
 
     getFolder = async (ctx: ProcessorContext) => {
-        let exportPath = this.plugin.settings.exportPath;
-        if (!exportPath.startsWith('/')) {
-            // relative to the document
-            const documentPath = this.plugin.app.vault.getAbstractFileByPath(ctx.sourcePath).parent;
-            exportPath = `${documentPath.path}/${exportPath}`;
+        const configured = this.plugin.settings.exportPath.trim();
+        if (!configured) {
+            const note = this.plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
+            return note?.parent?.path ?? "";
         }
 
-        const exists = await this.plugin.app.vault.adapter.exists(exportPath);
-        if (!exists) {
-            await this.plugin.app.vault.createFolder(exportPath);
+        const folder = normalizePath(configured);
+        if (folder && folder !== "/" && !await this.plugin.app.vault.adapter.exists(folder)) {
+            await this.plugin.app.vault.createFolder(folder);
         }
-
-        return exportPath;
+        return folder;
     }
 
     getFilePath = async (source: string, ctx: ProcessorContext, type: string) => {
-
         const filename = this.getFilename(source, ctx);
-        const path = await this.getFolder(ctx);
-
-        return `${path}${filename}.${type}`;
+        const folder = await this.getFolder(ctx);
+        return normalizePath(folder + "/" + filename + "." + type);
     }
 
     getFile = (fileName: string) => {

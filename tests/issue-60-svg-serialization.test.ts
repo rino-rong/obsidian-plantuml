@@ -63,7 +63,7 @@ describe("issue #60: copied/exported svg is a valid standalone svg file", () => 
 
         expect(plugin.app.vault.create).toHaveBeenCalledTimes(1);
         const [path, data] = vi.mocked(plugin.app.vault.create).mock.calls[0] as unknown as [string, string];
-        expect(path).toBe("/Exports/Issue 60.svg");
+        expect(path).toBe("Exports/Issue 60.svg");
         expect(data).not.toContain("&nbsp;");
         expectValidSvgDocument(data);
     });
