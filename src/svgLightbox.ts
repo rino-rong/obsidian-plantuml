@@ -443,6 +443,12 @@ export function registerSvgLightbox(el: HTMLElement, plugin: PlantumlPlugin, sou
         const ownerWindow = svg.ownerDocument.defaultView;
         if (!ownerWindow || target instanceof ownerWindow.Element && target.closest("a")) return;
 
+        // Text Popup owns clicks inside its viewer (including annotation tools).
+        if (svg.closest(".mod-text-popup")) return;
+        const selection = ownerWindow.getSelection();
+        if (selection && !selection.isCollapsed && svg.contains(selection.anchorNode)
+            && svg.contains(selection.focusNode)) return;
+
         const sanitized = sanitizeSvg(serializeSvg(svg), svg.ownerDocument);
         if (!sanitized) return;
         event.preventDefault();

@@ -148,6 +148,31 @@ function selectText(element: Element, start: number, end: number) {
 }
 
 describe("SVG Lightbox", () => {
+    it("lets Text Popup handle the SVG click without opening another viewer", async () => {
+        const {el, svg} = await render();
+        const popup = document.body.createDiv({cls: "mod-text-popup"});
+        popup.appendChild(el);
+        const hostClick = vi.fn();
+        popup.addEventListener("click", hostClick);
+        const event = click(svg.querySelector("circle")!);
+        expect(hostClick).toHaveBeenCalledWith(event);
+        expect(event.defaultPrevented).toBe(false);
+        expect(document.querySelector(".lightbox, .plantuml-svg-lightbox-trigger")).toBeNull();
+    });
+
+    it("keeps a note SVG text selection when the selection gesture ends with a click", async () => {
+        const {svg} = await render();
+        const label = svg.querySelectorAll("text")[1];
+        selectText(label, 0, 3);
+        try {
+            click(label);
+            expect(window.getSelection()?.toString()).toBe("Ali");
+            expect(nativeOpen).not.toHaveBeenCalled();
+        } finally {
+            window.getSelection()?.removeAllRanges();
+        }
+    });
+
     it("keeps the Reading-view SVG inline and opens one native Lightbox with a sanitized inline clone", async () => {
         const {el, svg} = await render();
 
