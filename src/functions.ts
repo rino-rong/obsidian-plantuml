@@ -55,8 +55,12 @@ export class Replacer {
                 return "[[" + url + " " + (alias || target) + "]]";
             }
             // plantuml uses the first space to separate the url from the label, unless the url is quoted
-            const url = /\s/.test(target) ? "\"" + target + "\"" : target;
-            return "[[" + url + (alias ? " " + alias : "") + "]]";
+            // A basename is fine as a label, but dropping a folder from the href
+            // makes Obsidian resolve duplicate names to the nearest note.
+            const href = filetype === "svg" && path ? path + subpath : target;
+            const url = /\s/.test(href) ? "\"" + href + "\"" : href;
+            const label = alias || (href !== target ? target : "");
+            return "[[" + url + (label ? " " + label : "") + "]]";
         }));
     }
 

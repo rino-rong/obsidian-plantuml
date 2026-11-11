@@ -11,6 +11,18 @@ describe("Replacer.replaceLinks", () => {
         expect(result).toBe("A -> B [[Target]]");
     });
 
+    it("keeps the selected folder for duplicate note names without changing the visible label", () => {
+        const plugin = createPlugin({files: ["A/总览.md", "B/总览.md"]});
+        expect(plugin.replacer.replaceLinks("[[[B/总览]]]", "A/测试.md", "svg"))
+            .toBe("[[B/总览 总览]]");
+    });
+
+    it("preserves a qualified SVG target with a heading and an explicit alias", () => {
+        const plugin = createPlugin({files: ["A/总览.md", "B/总览.md"]});
+        expect(plugin.replacer.replaceLinks("[[[B/总览#验收 标题|查看目标]]]", "A/测试.md", "svg"))
+            .toBe('[["B/总览#验收 标题" 查看目标]]');
+    });
+
     it("turns vault links into obsidian:// urls for png, keeping the alias", () => {
         const plugin = createPlugin({files: ["Notes/Target.md"], vaultName: "My Vault"});
 
