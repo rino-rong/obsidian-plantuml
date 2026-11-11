@@ -82,6 +82,12 @@ export default class PlantumlPlugin extends Plugin {
             const processor = new DebouncedProcessors(this);
             this.debouncedProcessor = processor;
 
+            this.registerEvent(this.app.workspace.on("css-change", () => {
+                const docs = new Set([activeDocument]);
+                this.app.workspace.iterateAllLeaves(leaf => docs.add(leaf.view.containerEl.ownerDocument));
+                for (const doc of docs) processor.refreshTheme(doc);
+            }));
+
             addIcon("document-" + VIEW_TYPE, LOGO_SVG);
             this.registerView(VIEW_TYPE, (leaf) => {
                 return new PumlView(leaf, this);

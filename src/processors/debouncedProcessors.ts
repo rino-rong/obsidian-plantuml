@@ -11,6 +11,7 @@ export class DebouncedProcessors implements Processor {
     // keyed by the element the diagram is rendered into, so that re-rendering the same element is debounced
     debouncers = new WeakMap<HTMLElement, Debouncer<[string, HTMLElement, ProcessorContext], unknown>>();
     renderStates = new WeakMap<HTMLElement, {
+        dark: boolean,
         originalSource: string,
         source: string,
         ctx: ProcessorContext,
@@ -25,6 +26,17 @@ export class DebouncedProcessors implements Processor {
         this.plugin = plugin;
         const debounceTime = plugin.settings.debounce;
         this.debounceTime = debounceTime * this.SECONDS_TO_MS_FACTOR;
+    }
+
+    refreshTheme(doc: Document): void {
+        const dark = doc.body.hasClass("theme-dark");
+        for (const el of Array.from(doc.querySelectorAll<HTMLElement>(".puml-render-container"))) {
+            const state = this.renderStates.get(el);
+            if (!state || state.dark === dark) continue;
+            void this.processor(state.originalSource, el, state.ctx, state.filetype, state.processor);
+            // The theme changed, not the diagram source: don't wait for the typing delay.
+            this.debouncers.get(el)?.run();
+        }
     }
 
     default = async(source: string, el: HTMLElement, ctx: ProcessorContext) => {
@@ -48,18 +60,20 @@ export class DebouncedProcessors implements Processor {
     }
 
     processor = async (originalSource: string, el: HTMLElement, ctx: ProcessorContext, filetype: string, processor: (source: string, el: HTMLElement, ctx: ProcessorContext) => Promise<void>) => {
+        el.classList.add("puml-render-container");
         el.dataset.filetype = filetype;
         el.createEl("h6", {text: "Generating PlantUML diagram", cls: "puml-loading"});
 
         let source = this.plugin.replacer.decodeWhiteSpaces(originalSource);
         source = this.plugin.replacer.replaceLinks(source, ctx?.sourcePath ?? '', filetype);
-        const themeHeader = activeDocument.body.hasClass('theme-dark')
+        const dark = el.ownerDocument.body.hasClass('theme-dark');
+        const themeHeader = dark
             ? this.plugin.settings.darkHeader
             : this.plugin.settings.lightHeader;
         source = this.plugin.replacer.insertHeaders(source, this.plugin.settings.header, themeHeader);
 
         const isRerender = this.renderStates.has(el);
-        const state = {originalSource, source, ctx, filetype, processor};
+        const state = {dark, originalSource, source, ctx, filetype, processor};
         this.renderStates.set(el, state);
 
         const render = async (source: string, el: HTMLElement, ctx: ProcessorContext) => {

@@ -17,8 +17,8 @@ export class ServerProcessor implements Processor {
         return url.length > 0 ? url : DEFAULT_SETTINGS.server_url;
     }
 
-    private isDark(): boolean {
-        return activeDocument.body.hasClass('theme-dark');
+    private isDark(el: HTMLElement): boolean {
+        return el.ownerDocument.body.hasClass('theme-dark');
     }
 
     private insertError(el: HTMLElement, message: string) {
@@ -34,7 +34,7 @@ export class ServerProcessor implements Processor {
     }
 
     svg = async(source: string, el: HTMLElement, _: ProcessorContext) => {
-        const imageUrlBase = this.getUrl() + (this.isDark() ? "/dsvg/" : "/svg/");
+        const imageUrlBase = this.getUrl() + (this.isDark(el) ? "/dsvg/" : "/svg/");
         const encodedDiagram = plantuml.encode(source);
 
         let result: string;
@@ -56,7 +56,7 @@ export class ServerProcessor implements Processor {
 
     png = async(source: string, el: HTMLElement, _: ProcessorContext) => {
         const url = this.getUrl();
-        const imageUrlBase = url + (this.isDark() ? "/dpng/" : "/png/");
+        const imageUrlBase = url + (this.isDark(el) ? "/dpng/" : "/png/");
 
         const encodedDiagram = plantuml.encode(source);
         const image = imageUrlBase + encodedDiagram;
@@ -76,7 +76,7 @@ export class ServerProcessor implements Processor {
     }
 
     ascii = async(source: string, el: HTMLElement, _: ProcessorContext) => {
-        const asciiUrlBase = this.getUrl() + (this.isDark() ? "/dtxt/" : "/txt/");
+        const asciiUrlBase = this.getUrl() + (this.isDark(el) ? "/dtxt/" : "/txt/");
         const encodedDiagram = plantuml.encode(source);
 
         let result: string;
