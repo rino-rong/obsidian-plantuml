@@ -63,21 +63,27 @@ export class DebouncedProcessors implements Processor {
         this.renderStates.set(el, state);
 
         const render = async (source: string, el: HTMLElement, ctx: ProcessorContext) => {
+            const renderState = this.renderStates.get(el);
+            if (!renderState) return;
+            // Processors write both diagrams and errors into their target. Keep
+            // those writes private until this request is still the newest one.
+            const output = el.ownerDocument.createElement("div");
             try {
-                const renderState = this.renderStates.get(el);
-                await renderState?.processor(source, el, ctx);
-                if (renderState?.filetype === "svg") registerSvgLightbox(el, this.plugin, ctx.sourcePath);
+                await renderState.processor(source, output, ctx);
             } catch (error) {
+                if (this.renderStates.get(el) !== renderState) return;
                 console.error("PlantUML: failed to render diagram", error);
-                insertErrorMessage(el, error);
+                insertErrorMessage(output, error);
             }
+            if (this.renderStates.get(el) !== renderState) return;
+            el.replaceChildren(...Array.from(output.childNodes));
+            if (renderState.filetype === "svg") registerSvgLightbox(el, this.plugin, ctx.sourcePath);
         };
 
         if (isRerender) {
             this.debouncers.get(el)?.(source, el, ctx);
         } else {
             this.debouncers.set(el, debounce(render, this.debounceTime, true));
-            await render(source, el, ctx);
             this.registerLinkHandlers(el);
             el.addEventListener('contextmenu', (event) => {
                 const {originalSource, source, ctx, filetype} = this.renderStates.get(el) ?? state;
@@ -152,7 +158,8 @@ export class DebouncedProcessors implements Processor {
                             })
                     });
                 menu.showAtMouseEvent(event);
-            })
+            });
+            await render(source, el, ctx);
         }
     }
 
