@@ -13,27 +13,8 @@ import {defaultKeymap, history, indentWithTab} from "@codemirror/commands";
 
 export const VIEW_TYPE = "plantuml";
 
-const views: EditorView[] = [];
-
+const views = new Set<PumlView>();
 const syncAnnotation = Annotation.define<boolean>();
-
-function syncDispatch(from: number) {
-    return (tr: Transaction) => {
-        views[from].update([tr]);
-        if (tr.changes && tr.annotation && !tr.changes.empty && !tr.annotation(syncAnnotation)) {
-            for (let i = 0; i < views.length; i++) {
-                if(i !== from) {
-                    views[i].dispatch({
-                        changes: tr.changes,
-                        annotations: syncAnnotation.of(true)
-                    })
-                }
-            }
-
-        }
-
-    }
-}
 
 interface VaultWithConfig {
     getConfig(key: string): unknown;
@@ -46,7 +27,6 @@ export class PumlView extends TextFileView {
     changeModeButton: HTMLElement;
     currentView: 'source' | 'preview';
     plugin: PlantumlPlugin;
-    dispatchId = -1;
     previewDiv: HTMLElement | null = null;
 
     extensions: Extension[] = [
@@ -86,10 +66,22 @@ export class PumlView extends TextFileView {
                 doc: this.data,
             }),
             parent: this.sourceEl,
-            dispatch: syncDispatch(views.length),
+            dispatch: (tr, editor) => this.dispatchEdit(tr, editor),
         });
-        this.dispatchId = views.push(this.editor) - 1;
+        views.add(this);
 
+    }
+
+    private dispatchEdit(tr: Transaction, editor: EditorView): void {
+        editor.update([tr]);
+        if (!this.file || !tr.docChanged || tr.annotation(syncAnnotation)) return;
+
+        for (const peer of views) {
+            if (peer === this || peer.file !== this.file) continue;
+            // A pane loading/reloading a file may not yet have the base document.
+            if (!peer.editor.state.doc.eq(tr.startState.doc)) continue;
+            peer.editor.dispatch({changes: tr.changes, annotations: syncAnnotation.of(true)});
+        }
     }
 
     getViewType(): string {
@@ -140,7 +132,7 @@ export class PumlView extends TextFileView {
     }
 
     onunload() {
-        views.remove(views[this.dispatchId]);
+        views.delete(this);
         this.editor.destroy();
     }
 
