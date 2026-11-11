@@ -48,7 +48,9 @@ export default class PlantumlPlugin extends Plugin {
     debouncedProcessor: DebouncedProcessors;
     replacer: Replacer;
 
-    observer: MutationObserver;
+    observer?: MutationObserver;
+    private loadGeneration = 0;
+    private embedsRegistered = false;
 
     public hover: {
         linkText: string;
@@ -68,8 +70,10 @@ export default class PlantumlPlugin extends Plugin {
         return this.serverProcessor;
     }
 
-    onload(): void {
-        void this.loadSettings().then(async () => {
+    onload(): Promise<void> {
+        const generation = ++this.loadGeneration;
+        return this.loadSettings().then(async () => {
+            if (generation !== this.loadGeneration) return;
             this.addSettingTab(new PlantUMLSettingsTab(this));
             this.replacer = new Replacer(this);
             this.cache = new DiagramCache();
@@ -107,6 +111,7 @@ export default class PlantumlPlugin extends Plugin {
             this.registerMarkdownCodeBlockProcessor("plantuml-map", processor.png);
 
             this.app.embedRegistry.registerExtensions(['puml', 'pu'], (ctx, file, _subpath) => new PumlEmbed(this, file, ctx));
+            this.embedsRegistered = true;
 
             this.addCommand({
                 id: 'clear-cache',
@@ -119,7 +124,9 @@ export default class PlantumlPlugin extends Plugin {
                 description: 'PlantUML plugin'
             });
             await this.cache.migrateFromV1();
+            if (generation !== this.loadGeneration) return;
             await this.cache.evictExpired(this.settings.cache);
+            if (generation !== this.loadGeneration) return;
 
             //internal links
             this.observer = new MutationObserver((mutations) => {
@@ -190,8 +197,13 @@ export default class PlantumlPlugin extends Plugin {
     }
 
     onunload(): void {
-        this.observer.disconnect();
-        this.app.embedRegistry.unregisterExtensions(['puml', 'pu']);
+        ++this.loadGeneration;
+        this.observer?.disconnect();
+        this.observer = undefined;
+        if (this.embedsRegistered) {
+            this.app.embedRegistry.unregisterExtensions(['puml', 'pu']);
+            this.embedsRegistered = false;
+        }
     }
 
     async loadSettings(): Promise<void> {
