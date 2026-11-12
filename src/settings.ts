@@ -12,6 +12,7 @@ export interface PlantUMLSettings {
     dotPath: string;
     defaultProcessor: ImageFormat;
     codeBlockProcessor: ImageFormat;
+    clickToZoom: boolean;
     cache: number;
     exportPath: string;
     lightHeader: string;
@@ -27,6 +28,7 @@ export const DEFAULT_SETTINGS: PlantUMLSettings = {
     dotPath: '',
     defaultProcessor: "png",
     codeBlockProcessor: "png",
+    clickToZoom: true,
     cache: 60,
     exportPath: '',
     lightHeader: '',
@@ -120,6 +122,15 @@ export class PlantUMLSettingsTab extends PluginSettingTab {
                         png: 'PNG',
                         svg: 'SVG',
                     }
+                }
+            },
+            {
+                name: '单击图面放大',
+                desc: '单击笔记中的 PlantUML SVG 打开放大视图。关闭后仍可使用其他插件的放大按钮。',
+                control: {
+                    type: 'toggle',
+                    key: 'clickToZoom',
+                    defaultValue: DEFAULT_SETTINGS.clickToZoom,
                 }
             },
             {

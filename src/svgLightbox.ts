@@ -70,11 +70,20 @@ function createFallbackLightbox(sourceImage: HTMLImageElement): void {
             previouslyFocused.focus({preventScroll: true});
         }
     };
-    backdrop.addEventListener("click", close);
+    // A drag can synthesize a click on a shared ancestor (or the capture owner).
+    // Dismiss only a gesture that started and ended on the same background.
+    let press: {target: EventTarget | null; x: number; y: number} | undefined;
+    lightbox.addEventListener("pointerdown", event => {
+        press = {target: event.target, x: event.clientX, y: event.clientY};
+    }, true);
+    const closeOnBackgroundClick = (event: MouseEvent) => {
+        const background = event.target === backdrop || event.target === media;
+        if (background && (!press || (press.target === event.target
+            && Math.hypot(event.clientX - press.x, event.clientY - press.y) < 5))) close();
+    };
+    backdrop.addEventListener("click", closeOnBackgroundClick);
     closeButton.addEventListener("click", close);
-    media.addEventListener("click", event => {
-        if (event.target !== image) close();
-    });
+    media.addEventListener("click", closeOnBackgroundClick);
     media.addEventListener("dblclick", event => {
         if (event.target !== image) return;
         zoomLevel = zoomLevel === 1 ? 2 : 1;
@@ -438,7 +447,7 @@ export function registerSvgLightbox(el: HTMLElement, plugin: PlantumlPlugin, sou
     svg.dataset.plantumlLightboxRegistered = "true";
 
     svg.addEventListener("click", event => {
-        if (event.button !== 0) return;
+        if (event.button !== 0 || plugin.settings.clickToZoom === false) return;
         const target = event.target;
         const ownerWindow = svg.ownerDocument.defaultView;
         if (!ownerWindow || target instanceof ownerWindow.Element && target.closest("a")) return;

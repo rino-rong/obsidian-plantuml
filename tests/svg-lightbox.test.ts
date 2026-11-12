@@ -148,6 +148,29 @@ function selectText(element: Element, start: number, end: number) {
 }
 
 describe("SVG Lightbox", () => {
+    it("reads the zoom preference on every click", async () => {
+        const {svg, plugin} = await render();
+        plugin.settings.clickToZoom = false;
+        expect(click(svg).defaultPrevented).toBe(false);
+        expect(nativeOpen).not.toHaveBeenCalled();
+        plugin.settings.clickToZoom = true;
+        click(svg);
+        expect(nativeOpen).toHaveBeenCalledOnce();
+    });
+
+    it("keeps fallback open when a text drag ends with a wrapper click", async () => {
+        const {svg} = await render(SVG, true);
+        click(svg);
+        const box = document.querySelector(".lightbox")!;
+        box.querySelector("svg text")!.dispatchEvent(new MouseEvent("pointerdown", {bubbles: true}));
+        click(box.querySelector(".media-wrapper")!);
+        expect(box.isConnected).toBe(true);
+        const bg = box.querySelector(".lightbox-bg")!;
+        bg.dispatchEvent(new MouseEvent("pointerdown", {bubbles: true}));
+        click(bg);
+        expect(box.isConnected).toBe(false);
+    });
+
     it("lets Text Popup handle the SVG click without opening another viewer", async () => {
         const {el, svg} = await render();
         const popup = document.body.createDiv({cls: "mod-text-popup"});
