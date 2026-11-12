@@ -76,3 +76,19 @@
 .lightbox.plantuml-svg-lightbox .plantuml-svg-lightbox-inline a {
     cursor: pointer;
 }
+
+/* Obsidian's image viewer uses a black backdrop even in light mode.
+   Match the note surface for PlantUML, including diagrams with no SVG fill. */
+.theme-light .plantuml-svg-lightbox .lightbox-bg {
+    background-color: var(--background-primary);
+}
+
+.theme-light .plantuml-svg-lightbox .lightbox-titlebar-text,
+.theme-light .plantuml-svg-lightbox .modal-close-button {
+    color: var(--text-normal);
+    text-shadow: none;
+}
+
+.theme-light .plantuml-svg-lightbox .modal-close-button {
+    background-color: var(--background-secondary);
+}
