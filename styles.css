@@ -100,3 +100,18 @@
     justify-content: flex-end;
     gap: var(--size-2-1);
 }
+
+.plantuml-embed[data-plantuml-compare-layout="none"] > .plantuml-embed-editor { display: none; }
+.plantuml-embed-editor { min-width: 0; }
+.plantuml-embed-editor small { display: block; color: var(--text-muted); overflow-wrap: anywhere; }
+.plantuml-embed-code .cm-scroller {
+    width: 100%; min-height: 10em; max-height: 65vh; overflow: auto; font-family: var(--font-monospace);
+    color: var(--text-normal); background: var(--background-primary);
+}
+.plantuml-embed[data-plantuml-compare-layout="side"] {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "bar bar" "diagram editor"; gap: var(--size-4-2);
+}
+.plantuml-embed[data-plantuml-compare-layout="side"] > .plantuml-embed-actions { grid-area: bar; }
+.plantuml-embed[data-plantuml-compare-layout="side"] > .plantuml-embed-diagram { grid-area: diagram; min-width: 0; }
+.plantuml-embed[data-plantuml-compare-layout="side"] > .plantuml-embed-editor { grid-area: editor; }
