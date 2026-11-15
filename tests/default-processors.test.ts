@@ -181,7 +181,7 @@ describe("include rendering entry points", () => {
 
         await new PumlEmbed(plugin, file, {app: plugin.app, containerEl}).loadFile();
 
-        expect(defaultProcessor).toHaveBeenCalledWith(SOURCE, containerEl, CONTEXT);
+        expect(defaultProcessor).toHaveBeenCalledWith(SOURCE, containerEl.querySelector(".plantuml-embed-diagram"), CONTEXT);
         expect(png).not.toHaveBeenCalled();
     });
 
