@@ -19,6 +19,7 @@ export class DebouncedProcessors implements Processor {
         processor: (source: string, el: HTMLElement, ctx: ProcessorContext) => Promise<void>,
     }>();
 
+    private goodPreviews = new WeakSet<HTMLElement>();
     debounceTime: number;
     plugin: PlantumlPlugin;
 
@@ -62,7 +63,7 @@ export class DebouncedProcessors implements Processor {
     processor = async (originalSource: string, el: HTMLElement, ctx: ProcessorContext, filetype: string, processor: (source: string, el: HTMLElement, ctx: ProcessorContext) => Promise<void>) => {
         el.classList.add("puml-render-container");
         el.dataset.filetype = filetype;
-        el.createEl("h6", {text: "Generating PlantUML diagram", cls: "puml-loading"});
+        if (!ctx.onPreviewResult || !el.querySelector(":scope > .puml-loading")) el.createEl("h6", {text: "Generating PlantUML diagram", cls: "puml-loading"});
 
         let source = this.plugin.replacer.decodeWhiteSpaces(originalSource);
         source = this.plugin.replacer.replaceLinks(source, ctx?.sourcePath ?? '', filetype);
@@ -90,6 +91,16 @@ export class DebouncedProcessors implements Processor {
                 insertErrorMessage(output, error);
             }
             if (this.renderStates.get(el) !== renderState) return;
+            if (ctx.onPreviewResult) {
+                const ok = !output.dataset.plantumlRenderError && !output.querySelector(".mod-error")
+                    && !!output.querySelector(renderState.filetype === "svg" ? "svg.puml-svg" : "img");
+                ctx.onPreviewResult(ok);
+                if (!ok && this.goodPreviews.has(el)) {
+                    el.querySelectorAll(":scope > .puml-loading").forEach(node => node.remove());
+                    return;
+                }
+                if (ok) this.goodPreviews.add(el);
+            }
             el.replaceChildren(...Array.from(output.childNodes));
             if (renderState.filetype === "svg") registerSvgLightbox(el, this.plugin, ctx.sourcePath);
         };

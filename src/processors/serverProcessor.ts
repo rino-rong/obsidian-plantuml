@@ -28,8 +28,9 @@ export class ServerProcessor implements Processor {
     }
 
     // the server answers diagrams containing errors with a 400 and a rendering of the error, so keep the body
-    private async getText(url: string): Promise<string> {
+    private async getText(url: string, output: HTMLElement): Promise<string> {
         const response = await requestUrl({url, method: 'GET', throw: false});
+        if (response.status >= 400) output.dataset.plantumlRenderError = String(response.status);
         return response.text;
     }
 
@@ -39,7 +40,7 @@ export class ServerProcessor implements Processor {
 
         let result: string;
         try {
-            result = await this.getText(imageUrlBase + encodedDiagram);
+            result = await this.getText(imageUrlBase + encodedDiagram, el);
         } catch (error) {
             console.error(error);
             this.insertError(el, "Could not reach the PlantUML server");
@@ -81,7 +82,7 @@ export class ServerProcessor implements Processor {
 
         let result: string;
         try {
-            result = await this.getText(asciiUrlBase + encodedDiagram);
+            result = await this.getText(asciiUrlBase + encodedDiagram, el);
         } catch (error) {
             console.error(error);
             this.insertError(el, "Could not reach the PlantUML server");

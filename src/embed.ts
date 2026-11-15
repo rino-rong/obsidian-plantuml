@@ -26,6 +26,8 @@ class EmbedSurface {
     private timer?: number;
     private saving?: Promise<void>;
     private blocked = false;
+    private previewFailed = false;
+    private opening = false;
     private disposed = false;
     private slot?: {map: Map<string, EmbedSurface>; key: string};
     private expiry?: number;
@@ -46,7 +48,7 @@ class EmbedSurface {
         this.sourceButton.addEventListener("click", event => {
             event.preventDefault();
             event.stopPropagation();
-            void this.plugin.app.workspace.getLeaf("tab").openFile(this.file, {state: {mode: "source"}});
+            void this.openSource();
         });
         this.panel = this.root.createDiv({cls: "plantuml-embed-editor"});
         this.pathLabel = this.panel.createEl("small");
@@ -184,8 +186,41 @@ class EmbedSurface {
         this.sourceButton.setAttribute("aria-label", this.sourceButton.title);
     }
 
+    private async openSource() {
+        if (this.opening) return;
+        this.opening = true;
+        try {
+            while (!this.blocked) {
+                const pending = this.flush();
+                if (pending === undefined) break;
+                await pending;
+            }
+            if (!this.blocked) await this.plugin.app.workspace.getLeaf("tab").openFile(this.file, {state: {mode: "source"}});
+            else new Notice("源文件尚未同步，请先处理保存提示");
+        } catch (error) {
+            new Notice(error instanceof Error ? error.message : "无法打开图源");
+        } finally {
+            this.opening = false;
+        }
+    }
+
+    private updateStatus() {
+        if (this.blocked) return;
+        const saved = this.draft === this.base;
+        this.message.textContent = this.previewFailed
+            ? (saved ? "源码已保存 · 预览未更新" : "待保存 · 预览未更新")
+            : (saved ? "已保存" : "待保存");
+    }
+
     private render(data: string) {
-        return this.plugin.debouncedProcessor.default(data, this.diagram, {sourcePath: this.file.path});
+        return this.plugin.debouncedProcessor.default(data, this.diagram, {
+            sourcePath: this.file.path,
+            onPreviewResult: ok => {
+                if (this.disposed || data !== this.draft) return;
+                this.previewFailed = !ok;
+                this.updateStatus();
+            },
+        });
     }
 
     private cancelTimer() {
@@ -207,7 +242,7 @@ class EmbedSurface {
             });
         }).then(() => {
             this.base = next;
-            this.message.textContent = "已保存";
+            this.updateStatus();
         }).catch((error: unknown) => {
             this.conflict(error instanceof Error ? error.message : "保存失败");
         }).finally(() => {

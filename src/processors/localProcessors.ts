@@ -59,6 +59,7 @@ export class LocalProcessors implements Processor {
         }
 
         const {image, error} = await this.generateLocalImage(source, OutputType.ASCII, this.plugin.replacer.getPath(ctx));
+        if (error) el.dataset.plantumlRenderError = "true";
         if (!error) {
             const includes = parseIncludedFiles(source);
             const entry: DiagramCacheEntry = { ts: Date.now(), ascii: image, includes, ...cached && { png: cached.png, svg: cached.svg, map: cached.map } };
@@ -88,6 +89,7 @@ export class LocalProcessors implements Processor {
             this.generateLocalImage(source, OutputType.PNG, path),
             this.generateLocalMap(source, path),
         ]);
+        if (error) el.dataset.plantumlRenderError = "true";
         if (!error) {
             const includes = parseIncludedFiles(source);
             const entry: DiagramCacheEntry = { ts: Date.now(), png: image, map, includes, ...cached && { svg: cached.svg, ascii: cached.ascii } };
@@ -113,6 +115,7 @@ export class LocalProcessors implements Processor {
         }
 
         const {image, error} = await this.generateLocalImage(source, OutputType.SVG, this.plugin.replacer.getPath(ctx));
+        if (error) el.dataset.plantumlRenderError = "true";
         if (!error) {
             const includes = parseIncludedFiles(source);
             const entry: DiagramCacheEntry = { ts: Date.now(), svg: image, includes, ...cached && { png: cached.png, map: cached.map, ascii: cached.ascii } };

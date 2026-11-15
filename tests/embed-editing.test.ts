@@ -23,7 +23,7 @@ async function setup() {
     function layout(value: string, target: HTMLElement = root) {
         target.dispatchEvent(new CustomEvent("plantuml-embed-layout", {bubbles: true, detail: {layout: value}}));
     }
-    return {root, layout, disk: () => disk, external: (value: string) => {disk = value;}, embed};
+    return {root, layout, plugin, disk: () => disk, external: (value: string) => {disk = value;}, embed};
 }
 
 describe("editing the resolved embed file", () => {
@@ -41,14 +41,38 @@ describe("editing the resolved embed file", () => {
         embed.onunload();
     });
 
+    it("opens the source only after the last edit in a pending save chain reaches disk", async () => {
+        const {root, layout, disk, embed, plugin} = await setup();
+        const opened: string[] = [];
+        Object.assign(plugin.app.workspace, {getLeaf: () => ({openFile: () => opened.push(disk())})});
+        const process = plugin.app.vault.process.bind(plugin.app.vault);
+        let release!: () => void;
+        const gate = new Promise<void>(r => {release = r;});
+        vi.spyOn(plugin.app.vault, "process").mockImplementation(async (...args) => {
+            await gate;
+            return process(...args);
+        });
+        layout("inline");
+        const view = EditorView.findFromDOM(root.querySelector(".cm-content")!)!;
+        view.dispatch({changes: {from: 5, insert: "1"}});
+        root.querySelector<HTMLButtonElement>(".plantuml-open-source")!.click();
+        await vi.waitFor(() => expect(plugin.app.vault.process).toHaveBeenCalledOnce());
+        view.dispatch({changes: {from: 6, insert: "2"}});
+        expect(opened).toEqual([]);
+        release();
+        await vi.waitFor(() => expect(opened).toEqual(["draft12"]));
+        embed.onunload();
+    });
+
     it("does not overwrite an external write racing the pending save; keeps the local draft", async () => {
-        const {root, layout, disk, external, embed} = await setup();
+        const {root, layout, disk, external, embed, plugin} = await setup();
         layout("inline");
         const view = EditorView.findFromDOM(root.querySelector(".cm-content")!)!;
         view.dispatch({changes: {from: 0, to: 5, insert: "local"}});
         external("external");
-        layout("none");
+        root.querySelector<HTMLButtonElement>(".plantuml-open-source")!.click();
         await vi.waitFor(() => expect(root.querySelector("[role=status]")?.textContent).toContain("暂停保存"));
+        expect(plugin.app.workspace.getLeaf).not.toHaveBeenCalled();
         expect(disk()).toBe("external");
         expect(view.state.doc.toString()).toBe("local");
         embed.onunload();
