@@ -7,6 +7,7 @@ import {insertAsciiImage, insertImageWithMap, insertSvgImage} from "../functions
 
 export class ServerProcessor implements Processor {
     plugin: PlantumlPlugin;
+    private readonly pending = new Map<string, Promise<{status: number; text: string}>>();
 
     constructor(plugin: PlantumlPlugin) {
         this.plugin = plugin;
@@ -29,7 +30,15 @@ export class ServerProcessor implements Processor {
 
     // the server answers diagrams containing errors with a 400 and a rendering of the error, so keep the body
     private async getText(url: string, output: HTMLElement): Promise<string> {
-        const response = await requestUrl({url, method: 'GET', throw: false});
+        let pending = this.pending.get(url);
+        if (pending === undefined) {
+            pending = requestUrl({url, method: 'GET', throw: false}).finally(() => {
+                this.pending.delete(url);
+            });
+            this.pending.set(url, pending);
+        }
+        // Share the HTTP response only. Each caller still owns its error state and DOM.
+        const response = await pending;
         if (response.status >= 400) output.dataset.plantumlRenderError = String(response.status);
         return response.text;
     }
