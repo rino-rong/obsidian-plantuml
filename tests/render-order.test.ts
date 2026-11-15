@@ -12,6 +12,30 @@ function response(label: string) {
 describe("overlapping online SVG requests", () => {
     afterEach(() => vi.useRealTimers());
 
+    it("keeps the first deadline when save requeues an embed and its second view", async () => {
+        vi.useFakeTimers();
+        const plugin = createPlugin({settings: {defaultProcessor: "svg", debounce: 1}});
+        plugin.serverProcessor = new ServerProcessor(plugin);
+        const processors = new DebouncedProcessors(plugin);
+        const a = document.createElement("div"), b = document.createElement("div");
+        const ctx = {sourcePath: "B/Diagram.puml", onPreviewResult: vi.fn()};
+        vi.mocked(requestUrl).mockResolvedValue(response("initial"));
+        for (const el of [a, b]) await processors.default("initial", el, ctx);
+        vi.mocked(requestUrl).mockClear().mockResolvedValue(response("final"));
+        await processors.default("intermediate", a, ctx);
+        await vi.advanceTimersByTimeAsync(200);
+        await processors.default("final", a, ctx);
+        await vi.advanceTimersByTimeAsync(400);
+        for (const el of [a, b]) await processors.default("final", el, ctx);
+        await vi.advanceTimersByTimeAsync(599);
+        expect(requestUrl).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        expect(requestUrl).toHaveBeenCalledTimes(1);
+        for (const el of [a, b]) expect(el.querySelector("svg text")?.textContent).toBe("final");
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(requestUrl).toHaveBeenCalledTimes(1);
+    });
+
     it("retains the last good embed on HTTP 400 with a valid SVG error body and recovers", async () => {
         vi.useFakeTimers();
         const plugin = createPlugin({settings: {defaultProcessor: "svg", debounce: 1}});

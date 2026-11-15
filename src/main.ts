@@ -212,6 +212,7 @@ export default class PlantumlPlugin extends Plugin {
 
     onunload(): void {
         ++this.loadGeneration;
+        this.debouncedProcessor?.embedQueue.clear();
         this.observer?.disconnect();
         this.observer = undefined;
         if (this.embedsRegistered) {

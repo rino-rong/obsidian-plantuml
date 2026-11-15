@@ -1,3 +1,4 @@
+import {EmbedRenderQueue} from "./embedRenderQueue";
 import { debounce, Debouncer, HoverParent, Keymap, Menu, normalizePath, Notice, TFile } from "obsidian";
 import PlantumlPlugin from "../main";
 import { Processor, ProcessorContext } from "./processor";
@@ -19,6 +20,7 @@ export class DebouncedProcessors implements Processor {
         processor: (source: string, el: HTMLElement, ctx: ProcessorContext) => Promise<void>,
     }>();
 
+    readonly embedQueue = new EmbedRenderQueue();
     private goodPreviews = new WeakSet<HTMLElement>();
     debounceTime: number;
     plugin: PlantumlPlugin;
@@ -34,7 +36,7 @@ export class DebouncedProcessors implements Processor {
         for (const el of Array.from(doc.querySelectorAll<HTMLElement>(".puml-render-container"))) {
             const state = this.renderStates.get(el);
             if (!state || state.dark === dark) continue;
-            void this.processor(state.originalSource, el, state.ctx, state.filetype, state.processor);
+            void this.processor(state.originalSource, el, state.ctx, state.filetype, state.processor, true);
             // The theme changed, not the diagram source: don't wait for the typing delay.
             this.debouncers.get(el)?.run();
         }
@@ -60,7 +62,7 @@ export class DebouncedProcessors implements Processor {
         await this.processor(source, el, ctx, "svg", this.plugin.getProcessor().svg);
     }
 
-    processor = async (originalSource: string, el: HTMLElement, ctx: ProcessorContext, filetype: string, processor: (source: string, el: HTMLElement, ctx: ProcessorContext) => Promise<void>) => {
+    processor = async (originalSource: string, el: HTMLElement, ctx: ProcessorContext, filetype: string, processor: (source: string, el: HTMLElement, ctx: ProcessorContext) => Promise<void>, immediate = false) => {
         el.classList.add("puml-render-container");
         el.dataset.filetype = filetype;
         if (!ctx.onPreviewResult || !el.querySelector(":scope > .puml-loading")) el.createEl("h6", {text: "Generating PlantUML diagram", cls: "puml-loading"});
@@ -105,7 +107,12 @@ export class DebouncedProcessors implements Processor {
             if (renderState.filetype === "svg") registerSvgLightbox(el, this.plugin, ctx.sourcePath);
         };
 
-        if (isRerender) {
+        if (isRerender && ctx.onPreviewResult && filetype === "svg" && processor === this.plugin.serverProcessor?.svg && !immediate) {
+            this.debouncers.get(el)?.cancel();
+            const key = JSON.stringify([ctx.sourcePath, dark, this.plugin.settings.server_url, source]);
+            this.embedQueue.schedule(el, key, this.debounceTime, () => void render(source, el, ctx));
+        } else if (isRerender) {
+            this.embedQueue.cancel(el);
             this.debouncers.get(el)?.(source, el, ctx);
         } else {
             this.debouncers.set(el, debounce(render, this.debounceTime, true));
