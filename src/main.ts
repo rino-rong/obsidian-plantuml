@@ -1,5 +1,6 @@
+import {hasStaleEmbed, refreshStaleEmbedView} from "./staleEmbedView";
 import {
-    addIcon, Component, EventRef, Events, MarkdownView, Platform,
+    addIcon, Notice, Component, EventRef, Events, MarkdownView, Platform,
     Plugin, TAbstractFile, TFile
 } from 'obsidian';
 import {DEFAULT_SETTINGS, PlantUMLSettings, PlantUMLSettingsTab} from "./settings";
@@ -112,6 +113,19 @@ export default class PlantumlPlugin extends Plugin {
 
             this.app.embedRegistry.registerExtensions(['puml', 'pu'], (ctx, file, _subpath) => new PumlEmbed(this, file, ctx));
             this.embedsRegistered = true;
+            this.addCommand({
+                id: "refresh-stale-embed-view",
+                name: "刷新当前笔记的旧版引用图（会重置本标签撤销历史）",
+                checkCallback: checking => {
+                    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+                    if (!view || !hasStaleEmbed(view.containerEl)) return false;
+                    if (!checking) void refreshStaleEmbedView(view.leaf, view).catch(() =>
+                        new Notice("刷新失败，请先保存后重新打开库窗口。"));
+                    return true;
+                },
+            });
+            if (this.app.workspace.getLeavesOfType("markdown").some(leaf => hasStaleEmbed(leaf.view.containerEl)))
+                new Notice("检测到升级前的 PlantUML 引用图。请保存并收起对照编辑，然后执行「刷新当前笔记的旧版引用图」，或重新打开库窗口。", 12000);
 
             this.addCommand({
                 id: 'clear-cache',

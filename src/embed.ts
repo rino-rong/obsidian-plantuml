@@ -1,3 +1,4 @@
+import {markCurrentEmbed} from "./staleEmbedView";
 import {EditorState} from "@codemirror/state";
 import {EditorView, keymap} from "@codemirror/view";
 import {defaultKeymap, history, historyKeymap} from "@codemirror/commands";
@@ -39,6 +40,7 @@ class EmbedSurface {
     constructor(private plugin: PlantumlPlugin, private file: TFile, ctx: EmbedContext) {
 
         this.root = ctx.containerEl.createDiv({cls: "plantuml-embed"});
+        markCurrentEmbed(this.root);
         this.root.dataset.plantumlCompareLayout = "none";
         const bar = this.root.createDiv({cls: "plantuml-embed-actions"});
         this.sourceButton = bar.createEl("button", {
