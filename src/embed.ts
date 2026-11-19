@@ -1,3 +1,4 @@
+import {listDrafts, removeDraft, storeDraft} from "./conflictDrafts";
 import {markCurrentEmbed} from "./staleEmbedView";
 import {EditorState} from "@codemirror/state";
 import {EditorView, keymap} from "@codemirror/view";
@@ -18,6 +19,9 @@ class EmbedSurface {
     private panel: HTMLElement;
     private pathLabel: HTMLElement;
     private message: HTMLElement;
+    private recovery: HTMLElement;
+    private conflictDraft?: {id: string; path: string};
+    private draftWarning?: HTMLElement;
     private editor?: EditorView;
     private editorHost: HTMLElement;
     private get draft(): string { return this.editor?.state.sliceDoc() ?? this.base ?? ""; }
@@ -58,6 +62,7 @@ class EmbedSurface {
         for (const name of ["keydown", "mousedown", "click", "beforeinput"])
             this.editorHost.addEventListener(name, event => event.stopPropagation());
         this.message = this.panel.createDiv({attr: {role: "status"}});
+        this.recovery = this.root.createDiv({cls: "plantuml-embed-recovery"});
         this.updatePath();
         this.diagram = this.root.createDiv({cls: "plantuml-embed-diagram"});
         this.root.addEventListener("plantuml-embed-layout", event => {
@@ -66,14 +71,14 @@ class EmbedSurface {
             if (!["none", "inline", "side"].includes(layout)) return;
             this.root.dataset.plantumlCompareLayout = layout;
             this.remember();
+            this.showRecovery();
             if (layout === "none") void this.flush();
             else if (this.base !== undefined) this.ensureEditor().focus();
         });
     }
 
-    private ensureEditor(): EditorView {
+    private ensureEditor(data = this.base ?? ""): EditorView {
         if (this.editor) return this.editor;
-        const data = this.base ?? "";
         this.editor = new EditorView({
             parent: this.editorHost,
             state: EditorState.create({doc: data, extensions: [
@@ -84,7 +89,10 @@ class EmbedSurface {
                     if (!update.docChanged || this.loading) return;
                     this.revision++;
                     void this.render(this.draft);
-                    if (this.blocked) return;
+                    if (this.blocked) {
+                        this.preserveDraft();
+                        return;
+                    }
                     this.message.textContent = "待保存";
                     this.cancelTimer();
                     this.timer = window.setTimeout((): void => { void this.flush(); }, 400);
@@ -102,13 +110,17 @@ class EmbedSurface {
     private loading = false;
     private resetEditor(data: string) {
         this.base = data;
+        this.replaceEditor(data);
+    }
+
+    private replaceEditor(data: string) {
         if (this.editor && this.draft !== data) {
             // External changes establish a new undo baseline.
             this.loading = true;
             try {
                 this.editor.destroy();
                 this.editor = undefined;
-                this.ensureEditor();
+                this.ensureEditor(data);
             } finally { this.loading = false; }
         }
     }
@@ -254,11 +266,70 @@ class EmbedSurface {
         return this.saving;
     }
 
+    private preserveDraft() {
+        const record = this.conflictDraft ??= {path: this.file.path, id: this.root.ownerDocument.defaultView?.crypto.randomUUID() ?? activeWindow.crypto.randomUUID()};
+        try {
+            storeDraft(this.plugin.app, record.path, {id: record.id, text: this.draft, updatedAt: Date.now()});
+            this.draftWarning?.remove();
+            this.draftWarning = undefined;
+        } catch {
+            this.draftWarning ??= this.message.createDiv({text: "无法保存恢复草稿，请在关闭前复制源码。"});
+        }
+    }
+
+    private showRecovery() {
+        this.recovery.empty();
+        let drafts;
+        try {
+            drafts = listDrafts(this.plugin.app, this.file.path);
+        } catch {
+            return;
+        }
+        for (const [index, draft] of drafts.entries()) {
+            const button = this.recovery.createEl("button", {
+                text: drafts.length === 1 ? "恢复冲突草稿" : `恢复冲突草稿 ${index + 1}`,
+                attr: {type: "button", title: new Date(draft.updatedAt).toLocaleString()},
+            });
+            button.addEventListener("click", event => {
+                event.stopPropagation();
+                if (this.conflictDraft?.id === draft.id) {
+                    this.root.dispatchEvent(new CustomEvent("plantuml-embed-layout", {detail: {layout: "side"}}));
+                } else {
+                    void this.restoreDraft(draft.id).catch(() => new Notice("无法恢复冲突草稿"));
+                }
+            });
+        }
+    }
+
+    private async restoreDraft(id: string) {
+        if (this.blocked || this.draft !== this.base || this.saving !== undefined) {
+            new Notice("请先处理当前编辑器的草稿。");
+            return;
+        }
+        const path = this.file.path;
+        const disk = await this.plugin.app.vault.read(this.file);
+        if (this.disposed || this.blocked || this.draft !== this.base || this.saving !== undefined || path !== this.file.path) return;
+        const record = listDrafts(this.plugin.app, path).find(draft => draft.id === id);
+        if (!record) {
+            this.showRecovery();
+            return;
+        }
+        this.conflictDraft = {path, id};
+        this.base = disk;
+        this.ensureEditor();
+        this.replaceEditor(record.text);
+        this.conflict("已恢复冲突草稿，磁盘内容仍保留");
+        this.root.dispatchEvent(new CustomEvent("plantuml-embed-layout", {detail: {layout: "side"}}));
+        await this.render(record.text);
+    }
+
     private conflict(reason: string) {
         if (this.blocked) return;
         this.blocked = true;
         this.cancelTimer();
         this.message.textContent = reason + "；已暂停保存。请复制需要保留的草稿，再重新载入源文件。";
+        this.preserveDraft();
+        this.showRecovery();
         new Notice(this.file.path + "：" + this.message.textContent);
         const reload = this.message.createEl("button", {text: "放弃草稿并重新载入", attr: {type: "button"}});
         const discardAndReload = async () => {
@@ -267,8 +338,12 @@ class EmbedSurface {
             const draft = this.draft;
             const data = await vault.read(this.file);
             if (this.disposed || this.draft !== draft) return;
+            if (this.conflictDraft) removeDraft(this.plugin.app, this.conflictDraft.path, this.conflictDraft.id);
+            this.conflictDraft = undefined;
+            this.draftWarning = undefined;
             this.blocked = false;
             this.resetEditor(data);
+            this.showRecovery();
             this.message.empty();
             await this.render(data);
         };
@@ -284,6 +359,7 @@ class EmbedSurface {
             return;
         }
         this.resetEditor(data);
+        this.showRecovery();
         if (this.root.dataset.plantumlCompareLayout !== "none") this.ensureEditor();
         this.updatePath();
         await this.render(data);

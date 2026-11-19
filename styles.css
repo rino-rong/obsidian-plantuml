@@ -115,3 +115,10 @@
 .plantuml-embed[data-plantuml-compare-layout="side"] > .plantuml-embed-actions { grid-area: bar; }
 .plantuml-embed[data-plantuml-compare-layout="side"] > .plantuml-embed-diagram { grid-area: diagram; min-width: 0; }
 .plantuml-embed[data-plantuml-compare-layout="side"] > .plantuml-embed-editor { grid-area: editor; }
+
+.plantuml-embed-recovery:empty {
+    display: none;
+}
+.plantuml-embed[data-plantuml-compare-layout="side"] > .plantuml-embed-recovery {
+    grid-column: 1 / -1;
+}
